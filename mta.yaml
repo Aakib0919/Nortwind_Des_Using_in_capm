@@ -1,0 +1,60 @@
+---
+_schema-version: 3.3.0
+ID: Nortwind_Service_connect
+version: 1.0.0
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+modules:
+  - name: Nortwind_Service_connect-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      readiness-health-check-type: http
+      readiness-health-check-http-endpoint: /health
+    build-parameters:
+      builder: npm
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: Nortwind_Service_connect-db
+      - name: Nortwind_Service_connect-auth
+      - name: Nortwind_Service_connect-destination
+
+  - name: Nortwind_Service_connect-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: Nortwind_Service_connect-db
+
+resources:
+  - name: Nortwind_Service_connect-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: Nortwind_Service_connect-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: Nortwind_Service_connect-${org}-${space}
+        tenant-mode: dedicated
+  - name: Nortwind_Service_connect-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
